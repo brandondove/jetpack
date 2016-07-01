@@ -36,29 +36,6 @@ class Jetpack_SSO {
 
 		// Adding this action so that on login_init, the action won't be sanitized out of the $action global.
 		add_action( 'login_form_jetpack-sso', '__return_true' );
-
-		if ( Jetpack_SSO_Helpers::should_hide_login_form() ) {
-			/**
-			 * Since the default authenticate filters fire at priority 20 for checking username and password,
-			 * let's fire at priority 30. wp_authenticate_spam_check is fired at priority 99, but since we return a
-			 * WP_Error in disable_default_login_form, then we won't trigger spam processing logic.
-			 */
-			add_filter( 'authenticate', array( $this, 'disable_default_login_form' ), 30 );
-
-			/**
-			 * Filter the display of the disclaimer message appearing when default WordPress login form is disabled.
-			 *
-			 * @module sso
-			 *
-			 * @since 2.8.0
-			 *
-			 * @param bool true Should the disclaimer be displayed. Default to true.
-			 */
-			$display_sso_disclaimer = apply_filters( 'jetpack_sso_display_disclaimer', true );
-			if ( $display_sso_disclaimer ) {
-				add_filter( 'login_message', array( $this, 'msg_login_by_jetpack' ) );
-			}
-		}
 	}
 
 	/**
@@ -217,15 +194,22 @@ class Jetpack_SSO {
 			return $classes;
 		}
 
-		//Always add the jetpack-sso class so that we can add SSO specific styling even when the SSO form isn't being displayed.
+		// Always add the jetpack-sso class so that we can add SSO specific styling even when the SSO form isn't being displayed.
 		$classes[] = 'jetpack-sso';
 
-		// If jetpack-sso-default-form, show the default login form.
-		if ( isset( $_GET['jetpack-sso-default-form'] ) && 1 == $_GET['jetpack-sso-default-form'] ) {
-			return $classes;
+		/**
+		 * Should we show the SSO login form?
+		 *
+		 * $_GET['jetpack-sso-default-form'] is used to provide a fallback in case JavaScript is not enabled.
+		 *
+		 * The default_to_sso_login() method allows us to dynamically decide whether we show the SSO login form or not.
+		 * The SSO module uses the method to display the default login form if we can not find a user to log in via SSO.
+		 * But, the method could be filtered by a site admin to always show the default login form if that is preferred.
+		 */
+		if ( empty( $_GET['jetpack-sso-show-default-form'] ) && Jetpack_SSO_Helpers::show_sso_login() ) {
+			$classes[] = 'jetpack-sso-form-display';
 		}
 
-		$classes[] = 'jetpack-sso-form-display';
 		return $classes;
 	}
 
@@ -360,6 +344,29 @@ class Jetpack_SSO {
 
 	function login_init() {
 		global $action;
+
+		if ( Jetpack_SSO_Helpers::should_hide_login_form() ) {
+			/**
+			 * Since the default authenticate filters fire at priority 20 for checking username and password,
+			 * let's fire at priority 30. wp_authenticate_spam_check is fired at priority 99, but since we return a
+			 * WP_Error in disable_default_login_form, then we won't trigger spam processing logic.
+			 */
+			add_filter( 'authenticate', array( $this, 'disable_default_login_form' ), 30 );
+
+			/**
+			 * Filter the display of the disclaimer message appearing when default WordPress login form is disabled.
+			 *
+			 * @module sso
+			 *
+			 * @since 2.8.0
+			 *
+			 * @param bool true Should the disclaimer be displayed. Default to true.
+			 */
+			$display_sso_disclaimer = apply_filters( 'jetpack_sso_display_disclaimer', true );
+			if ( $display_sso_disclaimer ) {
+				add_filter( 'login_message', array( $this, 'msg_login_by_jetpack' ) );
+			}
+		}
 
 		/**
 		 * If the user is attempting to logout AND the auto-forward to WordPress.com
@@ -516,13 +523,13 @@ class Jetpack_SSO {
 					<span><?php esc_html_e( 'Or', 'jetpack' ); ?></span>
 				</div>
 
-				<a href="<?php echo add_query_arg( 'jetpack-sso-default-form', '1' ); ?>" class="jetpack-sso-toggle wpcom">
+				<a href="<?php echo add_query_arg( 'jetpack-sso-show-default-form', '1' ); ?>" class="jetpack-sso-toggle wpcom">
 					<?php
 						esc_html_e( 'Log in with username and password', 'jetpack' )
 					?>
 				</a>
 
-				<a href="<?php echo add_query_arg( 'jetpack-sso-default-form', '0' ); ?>" class="jetpack-sso-toggle default">
+				<a href="<?php echo add_query_arg( 'jetpack-sso-show-default-form', '0' ); ?>" class="jetpack-sso-toggle default">
 					<?php
 						esc_html_e( 'Log in with WordPress.com', 'jetpack' )
 					?>
@@ -646,7 +653,7 @@ class Jetpack_SSO {
 			JetpackTracking::record_user_event( 'sso_login_failed', array(
 				'error_message' => 'error_msg_enable_two_step'
 			) );
-			
+
 			/** This filter is documented in core/src/wp-includes/pluggable.php */
 			do_action( 'wp_login_failed', $user_data->login );
 			add_filter( 'login_message', array( $this, 'error_msg_enable_two_step' ) );
@@ -807,6 +814,8 @@ class Jetpack_SSO {
 			);
 			exit;
 		}
+
+		add_filter( 'jetpack_sso_default_to_sso_login', '__return_false' );
 
 		JetpackTracking::record_user_event( 'sso_login_failed', array(
 			'error_message' => 'cant_find_user'
@@ -1023,7 +1032,7 @@ class Jetpack_SSO {
 				),
 				array(  'a' => array( 'href' => array() ) )
 			),
-			esc_url_raw( add_query_arg( 'jetpack-sso-default-form', '1', wp_login_url() ) )
+			esc_url_raw( add_query_arg( 'jetpack-sso-show-default-form', '1', wp_login_url() ) )
 		);
 
 		$message .= sprintf( '<p class="message" id="login_error">%s</p>', $error );
@@ -1035,7 +1044,6 @@ class Jetpack_SSO {
 	 * Builds the translation ready string that is to be used when the site hides the default login form.
 	 *
 	 * @since 4.1.0
-	 * 
 	 * @return string
 	 */
 	public function get_sso_required_message() {
@@ -1059,7 +1067,7 @@ class Jetpack_SSO {
 	 *
 	 * @since 2.7
 	 * @param string $message
-	 * 
+	 *
 	 * @return string
 	 **/
 	public function msg_login_by_jetpack( $message ) {
