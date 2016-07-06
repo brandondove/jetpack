@@ -75,12 +75,21 @@ There are opportunities for developers at all levels to contribute. [Learn more 
 
 == Changelog ==
 
+= 4.2 =
+
+Bug Fixes:
+
+* Notifications: avoid PHP notices when moderating comments. #4208
+
+Enhancements:
+
+* General: we've completely refactored the way information was synchronized between your site and WordPress.com, thus ensuring every module uses information that's up to date.
+* Performance: we've reduced the number of queries typically run on both the front end and the dashboard, to improve overall performance. #4281
+
 = 4.1 =
 
 * Release date: July 6th, 2016
 * Release Post: http://wp.me/p1moTy-3jd
-
-**Performance Enhancements:**
 
 * Carousel no longer loads full-size images in the previous and next previews, increasing the speed and performance of slideshows.
 * We’ve improved Jetpack’s performance by making calls to the database more efficient; essentially, Jetpack is doing less on each page load, making things faster.
