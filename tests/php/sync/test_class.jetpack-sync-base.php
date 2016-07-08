@@ -4,6 +4,7 @@ $sync_dir = dirname( __FILE__ ) . '/../../../sync/';
 $sync_server_dir = dirname( __FILE__ ) . '/server/';
 
 require_once $sync_dir . 'class.jetpack-sync-server.php';
+require_once $sync_dir . 'class.jetpack-sync-users.php';
 require_once $sync_dir . 'class.jetpack-sync-listener.php';
 require_once $sync_dir . 'class.jetpack-sync-sender.php';
 require_once $sync_dir . 'class.jetpack-sync-wp-replicastore.php';
@@ -40,7 +41,7 @@ class WP_Test_Jetpack_Sync_Base extends WP_UnitTestCase {
 
 		// bind the sender to the server
 		remove_all_filters( 'jetpack_sync_send_data' );
-		add_filter( 'jetpack_sync_send_data', array( $this, 'serverReceive' ) );
+		add_filter( 'jetpack_sync_send_data', array( $this, 'serverReceive' ), 10 , 3 );
 
 		// bind the two storage systems to the server events
 		$this->server_replica_storage = new Jetpack_Sync_Test_Replicastore();
@@ -90,8 +91,8 @@ class WP_Test_Jetpack_Sync_Base extends WP_UnitTestCase {
 		return $codec->decode( $codec->encode( $instance ) );
 	}
 
-	function serverReceive( $data ) {
-		return $this->server->receive( $data );
+	function serverReceive( $data, $codec, $sent_timestamp ) {
+		return $this->server->receive( $data, null, $sent_timestamp );
 	}
 }
 
